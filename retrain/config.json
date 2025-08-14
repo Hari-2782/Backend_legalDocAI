@@ -1,0 +1,12 @@
+{
+  "base_model": "t5-base",
+  "epochs": 3,
+  "per_device_batch": 8,
+  "lr": 0.0002,
+  "max_input_len": 512,
+  "max_output_len": 192,
+  "lora_r": 16,
+  "lora_alpha": 32,
+  "lora_dropout": 0.1,
+  "output_dir": "./retrain/lora_model"
+}

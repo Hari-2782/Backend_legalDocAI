@@ -1,0 +1,14 @@
+fastapi
+uvicorn
+python-multipart
+pymupdf
+sentence-transformers
+# chromadb==0.4.22
+chromadb[cloud]
+firebase-admin
+requests
+langchain
+langchain-text-splitters
+langchain-community
+python-multipart
+psutil
