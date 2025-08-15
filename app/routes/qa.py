@@ -1,16 +1,27 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Depends
 from app.models import QARequest, QAResponse
 from app.services.embedding import query_vectors
 from app.services.inference import call_hf_inference, build_rag_prompt
 from app.database import firestore_db
+from app.auth import get_current_user
 import firebase_admin.firestore as firestore
 
 router = APIRouter()
 
 @router.post("/qa", response_model=QAResponse)
-async def query_legal_doc(req: QARequest):
+async def query_legal_doc(
+    req: QARequest,
+    current_user: dict = Depends(get_current_user)
+):
     if not req.file_hash:
         raise HTTPException(400, "file_hash is required")
+    
+    # Verify document ownership
+    user_id = current_user.get("uid")
+    doc_ref = firestore_db.collection("documents").document(req.file_hash)
+    doc = doc_ref.get()
+    if (not doc.exists) or (doc.to_dict().get("owner_id") != user_id):
+        raise HTTPException(status_code=404, detail="File not found or access denied.")
     
     # Query vectors using file_hash
     res = query_vectors(req.question, file_id=req.file_hash, top_k=req.top_k)
@@ -36,6 +47,7 @@ async def query_legal_doc(req: QARequest):
 
     # Save to history
     firestore_db.collection("history").add({
+        "user_id": user_id,
         "file_hash": req.file_hash,
         "question": req.question,
         "answer": answer,

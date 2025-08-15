@@ -177,12 +177,24 @@ def add_vectors(ids, documents, metadatas, embeddings):
 
 def query_vectors(query_text, file_id=None, top_k=5):
     try:
-        if not query_text:
-            logger.warning("No query text provided")
-            return {"documents": [], "metadatas": [], "distances": []}
-        
         filter = {"file_hash": file_id} if file_id else {}
-        results = vector_collection.query(query_texts=[query_text], n_results=top_k, where=filter)
+        
+        if not query_text:
+            logger.info(f"Getting all documents for file_hash: {file_id}")
+            # When no query text, get all documents for the file
+            # Use a generic query to get all documents
+            results = vector_collection.query(
+                query_texts=["document"],  # Generic query to get all
+                n_results=top_k, 
+                where=filter
+            )
+        else:
+            results = vector_collection.query(
+                query_texts=[query_text], 
+                n_results=top_k, 
+                where=filter
+            )
+        
         return results
     except Exception as e:
         logger.error(f"Error querying vectors: {e}")

@@ -1,4 +1,4 @@
-from fastapi import APIRouter, UploadFile, File, HTTPException, BackgroundTasks
+from fastapi import APIRouter, UploadFile, File, HTTPException, BackgroundTasks, Depends
 from app.services.pdf_parser import pdf_parser
 from app.services.embedding import embedding_service
 from app.database import firestore_db, vector_collection, embedder
@@ -9,6 +9,7 @@ from typing import Optional
 import gc
 
 from app.config import settings
+from app.auth import get_current_user
 from app.models import UploadResponse
 
 router = APIRouter()
@@ -93,7 +94,8 @@ async def process_pdf_background(file_hash: str, file_content: bytes, original_f
 @router.post("/upload", response_model=UploadResponse)
 async def upload_pdf(
     file: UploadFile = File(...),
-    background_tasks: BackgroundTasks = None
+    background_tasks: BackgroundTasks = None,
+    current_user: dict = Depends(get_current_user)
 ):
     try:
         # Check if required services are initialized
@@ -152,7 +154,8 @@ async def upload_pdf(
             "pages": basic_info.get("total_pages", 0),
             "upload_time": firestore.SERVER_TIMESTAMP,
             "processing_status": "processing",
-            "original_filename": file.filename
+            "original_filename": file.filename,
+            "owner_id": current_user.get("uid")
         }
         
         firestore_db.collection("documents").document(file_hash).set(doc_data)
@@ -187,7 +190,7 @@ async def upload_pdf(
         raise HTTPException(500, f"Upload failed: {str(e)}")
 
 @router.get("/upload/status/{file_hash}")
-async def get_upload_status(file_hash: str):
+async def get_upload_status(file_hash: str, current_user: dict = Depends(get_current_user)):
     """
     Get the processing status of an uploaded file.
     """
@@ -202,6 +205,9 @@ async def get_upload_status(file_hash: str):
             raise HTTPException(404, "File not found")
         
         data = doc.to_dict()
+        # Enforce ownership
+        if data.get("owner_id") != current_user.get("uid"):
+            raise HTTPException(404, "File not found")
         return {
             "file_hash": file_hash,
             "filename": data.get("filename"),
@@ -218,7 +224,7 @@ async def get_upload_status(file_hash: str):
         raise HTTPException(500, f"Error getting status: {str(e)}")
 
 @router.delete("/upload/{file_hash}")
-async def delete_file(file_hash: str):
+async def delete_file(file_hash: str, current_user: dict = Depends(get_current_user)):
     """
     Delete an uploaded file and its associated data.
     """
@@ -234,6 +240,9 @@ async def delete_file(file_hash: str):
             raise HTTPException(404, "File not found")
         
         data = doc.to_dict()
+        # Enforce ownership
+        if data.get("owner_id") != current_user.get("uid"):
+            raise HTTPException(404, "File not found")
         file_path = data.get("file_path")
         
         # Delete file from disk

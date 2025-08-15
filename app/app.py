@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from fastapi.responses import RedirectResponse
-from app.routes import upload, qa, feedback, summarize, retrain
+from app.routes import upload, qa, feedback, summarize, retrain, users, guest
 
 app = FastAPI(title="LegalDoc AI Backend")
 
@@ -13,4 +13,5 @@ app.include_router(qa.router, prefix="/api")
 app.include_router(feedback.router, prefix="/api")
 app.include_router(summarize.router, prefix="/api")
 app.include_router(retrain.router, prefix="/api")
-
+app.include_router(users.router, prefix="/api")
+app.include_router(guest.router, prefix="/api")

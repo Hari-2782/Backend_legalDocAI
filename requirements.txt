@@ -1,14 +1,20 @@
+# requirements.txt
 fastapi
 uvicorn
 python-multipart
 pymupdf
 sentence-transformers
-# chromadb==0.4.22
 chromadb[cloud]
 firebase-admin
 requests
 langchain
 langchain-text-splitters
 langchain-community
-python-multipart
 psutil
+python-jose[cryptography] # <-- ADD THIS
+anthropic # Or the client for OpenRouter if they have one, otherwise use requests
+# Training deps
+transformers>=4.40.0
+datasets>=2.18.0
+peft>=0.11.0
+accelerate>=0.28.0
