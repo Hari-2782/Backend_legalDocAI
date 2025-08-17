@@ -13,9 +13,35 @@ class QARequest(BaseModel):
     question: str
     top_k: Optional[int] = 5
 
+    # New structured highlights for frontend rendering
+    # Keeping old 'highlights' (List[str]) for backward-compat
+    
+class HighlightItem(BaseModel):
+    text: str
+    category: str  # 'Favorable' | 'General' | 'Risk' | 'Clause'
+    page: Optional[int] = None
+    chunk_id: Optional[str] = None
+    score: Optional[float] = None
+
 class QAResponse(BaseModel):
     answer: str
     evidence: List[Dict[str, Any]]
+    confidence: float
+    highlights: List[str] = []
+    category: Optional[str] = None
+    suggestions: List[str] = []
+    highlights_detailed: List[HighlightItem] = []
+
+# Slim response for frontend: only answer, evidence, and highlights (with category and suggestion)
+class HighlightDisplayItem(BaseModel):
+    text: str  # 10-15 words
+    category: str  # 'Favorable' | 'General' | 'Risk' | 'Clause'
+    suggestion: Optional[str] = None  # present when category == 'Risk'
+
+class QAResponseV2(BaseModel):
+    answer: str
+    evidence: List[Dict[str, Any]]
+    highlights: List[HighlightDisplayItem]
     confidence: float
 
 class FeedbackRequest(BaseModel):

@@ -1,5 +1,5 @@
 # app/routes/users.py
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
 from app.database import firestore_db
 from app.auth import get_current_user
 from firebase_admin import auth as fb_auth
@@ -12,6 +12,7 @@ import datetime
 import os
 import requests
 from app.services.inference import call_hf_inference
+from app.services.pdf_parser import pdf_parser
 import firebase_admin.firestore as firestore
 from google.api_core.exceptions import FailedPrecondition
 
@@ -261,15 +262,84 @@ Confidential Compliance Report:"""
 
     answer, confidence = call_hf_inference(prompt)
 
-    firestore_db.collection("confidential_reports").add({
-        "user_id": user_id,
-        "file_hash": req.file_hash,
-        "report_type": req.report_type,
-        "report": answer,
-        "confidence": confidence,
-        "timestamp": firestore.SERVER_TIMESTAMP,
-        "is_confidential": True,
-        "not_for_training": True
-    })
+    # Do not persist request or response; return directly to the client
+    return ConfidentialReportResponse(
+        report=answer,
+        confidence=confidence,
+        is_confidential=True
+    )
 
-    return ConfidentialReportResponse(report=answer, confidence=confidence, is_confidential=True)
+
+@router.post("/users/confidential-report-upload", response_model=ConfidentialReportResponse, tags=["Users"])
+async def generate_confidential_report_from_upload(
+    file: UploadFile = File(...),
+    report_type: str = Form(...),
+    current_user: dict = Depends(get_current_user)
+):
+    """Generate a confidential report from an uploaded PDF without storing to Firestore or Chroma.
+
+    - Processes PDF bytes in-memory
+    - Does not save file to disk
+    - Does not create any Firestore documents
+    - Does not index in Chroma/vector DB
+    """
+    try:
+        if not file.filename.lower().endswith(".pdf"):
+            raise HTTPException(status_code=400, detail="Only PDFs are supported")
+
+        content = await file.read()
+        if len(content) > 50 * 1024 * 1024:
+            raise HTTPException(status_code=400, detail="File too large. Maximum size is 50MB.")
+
+        extract = pdf_parser.extract_text_from_pdf_bytes(content, max_pages=None)
+        full_text = extract.get("full_text") or extract.get("text") or ""
+        if not full_text:
+            raise HTTPException(status_code=400, detail="Could not extract text from PDF")
+
+        if report_type == "financial":
+            prompt = f"""Generate a confidential financial analysis report for this legal document. Focus on:
+
+1. All financial obligations and costs
+2. Payment terms and schedules
+3. Penalties and late fees
+4. Tax implications
+5. Financial risks and liabilities
+
+Document: {full_text}
+
+Confidential Financial Report:"""
+        elif report_type == "legal_risks":
+            prompt = f"""Generate a confidential legal risk assessment for this document. Identify:
+
+1. Potential legal liabilities
+2. Compliance risks
+3. Contractual obligations
+4. Termination risks
+5. Dispute resolution procedures
+6. Regulatory compliance issues
+
+Document: {full_text}
+
+Confidential Legal Risk Assessment:"""
+        elif report_type == "compliance":
+            prompt = f"""Generate a confidential compliance analysis for this document. Assess:
+
+1. Regulatory compliance requirements
+2. Industry-specific regulations
+3. Data protection and privacy
+4. Reporting obligations
+5. Audit requirements
+6. Compliance deadlines
+
+Document: {full_text}
+
+Confidential Compliance Report:"""
+        else:
+            raise HTTPException(status_code=400, detail="Invalid report type. Use: financial, legal_risks, or compliance")
+
+        answer, confidence = call_hf_inference(prompt)
+        return ConfidentialReportResponse(report=answer, confidence=confidence, is_confidential=True)
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Confidential report generation failed: {e}")

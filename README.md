@@ -151,4 +151,24 @@ uvicorn app.app:app --reload
 - Chroma Cloud Client ensures collection persistence.
 - Summarize/Simplify fetch context even when query text is empty.
 - Chat history endpoint falls back when Firestore composite index is missing.
-- Confidential reports are stored with `not_for_training: true` and excluded from training.
+- Confidential reports endpoint does not store data. Use `/api/users/confidential-report-upload` to generate from an uploaded PDF without persistence.
+
+## Deploy
+
+### Option A: Hugging Face Spaces (free)
+- Create a Space (Docker).
+- Add Secrets: `OPENROUTER_API_KEY`, optionally `FIREBASE_*` and `CHROMA_*` if you need those features.
+- The included `Dockerfile` will start Uvicorn on `${PORT}`.
+
+### Option B: Google Cloud Run (always-free tier)
+1) Enable billing (required for Cloud Run, but usage can be $0 at low traffic).
+2) Create Secret for `firebase_key.json`; mount to `/secrets/firebase_key.json`.
+3) Deploy:
+```bash
+gcloud run deploy legaldocai \
+  --source . \
+  --region us-central1 \
+  --allow-unauthenticated \
+  --set-env-vars OPENROUTER_API_KEY=***,FIREBASE_WEB_API_KEY=***,CHROMA_CLOUD_API_KEY=***,USE_CHROMA_CLOUD=true,FIREBASE_KEY_PATH=/secrets/firebase_key.json
+```
+4) If you want strictly non-persistent use, omit `CHROMA_*` and rely on confidential endpoints only.
