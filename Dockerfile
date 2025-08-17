@@ -1,12 +1,33 @@
-FROM pytorch/pytorch:2.2.2-cuda12.1-cudnn8-runtime
+# Stage 1: Base build stage
+FROM pytorch/pytorch:2.2.2-cuda12.1-cudnn8-runtime-slim AS base
 
-# Install system dependencies
+WORKDIR /app
+
+# Install essential system dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libpoppler-cpp-dev \
     pkg-config \
+    curl \
     && rm -rf /var/lib/apt/lists/*
 
-# Set environment variables
+# Copy requirements for caching
+COPY requirements.txt .
+
+# Install runtime essentials
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Stage 2: Optional large packages (cached separately)
+FROM base AS large-deps
+
+# Install large optional packages
+RUN pip install --no-cache-dir torchvision sentence-transformers
+
+# Stage 3: Runtime stage (minimal)
+FROM base AS runtime
+
+WORKDIR /app
+
+# Environment variables
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PORT=8080 \
@@ -14,14 +35,16 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     CHROMA_DB_PATH=/app/chroma_db \
     GOOGLE_APPLICATION_CREDENTIALS=/mnt/secrets/firebase_key.json
 
-WORKDIR /app
+# Copy only installed dependencies from base
+COPY --from=base /usr/local/lib/python*/site-packages /usr/local/lib/python*/site-packages
+COPY --from=base /app /app
 
-# Copy and install requirements
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+# Optional: copy large packages if needed (cached)
+COPY --from=large-deps /usr/local/lib/python*/site-packages/torchvision* /usr/local/lib/python*/site-packages/
+COPY --from=large-deps /usr/local/lib/python*/site-packages/sentence_transformers* /usr/local/lib/python*/site-packages/
 
-# Copy app code
-COPY . .
+# Remove unnecessary files
+RUN rm -rf /app/tests /app/docs /root/.cache
 
 # Expose port
 EXPOSE $PORT
