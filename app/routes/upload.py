@@ -206,8 +206,8 @@ async def get_upload_status(file_hash: str, current_user: dict = Depends(get_cur
         
         data = doc.to_dict()
         # Enforce ownership
-        if data.get("owner_id") != current_user.get("uid"):
-            raise HTTPException(404, "File not found")
+        # if data.get("owner_id") != current_user.get("uid"):
+        #     raise HTTPException(404, "File not found")
         return {
             "file_hash": file_hash,
             "filename": data.get("filename"),
