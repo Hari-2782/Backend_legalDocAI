@@ -35,11 +35,11 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     CHROMA_DB_PATH=/app/chroma_db \
     GOOGLE_APPLICATION_CREDENTIALS=/mnt/secrets/firebase_key.json
 
-# Copy only installed dependencies from base
+# Copy installed dependencies from base
 COPY --from=base /usr/local/lib/python*/site-packages /usr/local/lib/python*/site-packages
 COPY --from=base /app /app
 
-# Optional: copy large packages if needed (cached)
+# Copy large packages (cached)
 COPY --from=large-deps /usr/local/lib/python*/site-packages/torchvision* /usr/local/lib/python*/site-packages/
 COPY --from=large-deps /usr/local/lib/python*/site-packages/sentence_transformers* /usr/local/lib/python*/site-packages/
 
