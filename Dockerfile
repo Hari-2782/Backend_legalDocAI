@@ -1,5 +1,5 @@
 # Stage 1: Base build stage
-FROM pytorch/pytorch:2.2.2-cuda12.1-cudnn8-runtime-slim AS base
+FROM pytorch/pytorch:2.2.1-cuda12.1-cudnn8-runtime AS base
 
 WORKDIR /app
 
