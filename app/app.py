@@ -8,10 +8,10 @@ app = FastAPI(title="LegalDoc AI Backend")
 # ✅ Allow all origins
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Allow all domains
+    allow_origins=["https://docstalks.netlify.app","http://localhost:3000"],  # <--- specify origin
     allow_credentials=True,
-    allow_methods=["*"],  # Allow all HTTP methods
-    allow_headers=["*"],  # Allow all headers
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 @app.get("/", include_in_schema=False)
