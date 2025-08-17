@@ -3,7 +3,7 @@ name: Build, Push and Deploy
 on:
   push:
     branches:
-      - main   # 👈 change if your default branch is 'master'
+      - main
 
 jobs:
   deploy:
@@ -20,12 +20,15 @@ jobs:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
 
+      # --- Build & push with caching ---
       - name: Build and Push Docker image
         uses: docker/build-push-action@v4
         with:
           context: .
           push: true
           tags: harisanth/legaldoc-ai:latest
+          cache-from: type=registry,ref=harisanth/legaldoc-ai:latest
+          cache-to: type=registry,ref=harisanth/legaldoc-ai:latest,mode=max
 
       # --- Railway deployment ---
       - name: Install Railway CLI
@@ -35,4 +38,3 @@ jobs:
         run: railway up --service legaldoc-ai
         env:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
-
