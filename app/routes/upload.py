@@ -122,12 +122,18 @@ async def upload_pdf(
         # Check for duplicate files
         duplicate_check = await check_duplicate_file(file_hash)
         if duplicate_check and duplicate_check.get("exists"):
-            existing_file = duplicate_check
+            existing_file_id = duplicate_check["file_id"]
+            user_id = current_user.get("uid")
+
+            # Add user to the list of authorized users if not already present
+            doc_ref = firestore_db.collection("documents").document(existing_file_id)
+            doc_ref.update({"authorized_users": firestore.ArrayUnion([user_id])})
+
             return UploadResponse(
-                file_id=existing_file["file_id"],
-                filename=existing_file["filename"],
-                pages=0,
-                message=f"File already exists (uploaded on {existing_file['upload_time']})",
+                file_id=existing_file_id,
+                filename=duplicate_check["filename"],
+                pages=0,  # This could be fetched from the doc if needed
+                message=f"Access granted to existing file.",
                 is_duplicate=True
             )
         
@@ -155,7 +161,7 @@ async def upload_pdf(
             "upload_time": firestore.SERVER_TIMESTAMP,
             "processing_status": "processing",
             "original_filename": file.filename,
-            "owner_id": current_user.get("uid")
+            "authorized_users": [current_user.get("uid")]
         }
         
         firestore_db.collection("documents").document(file_hash).set(doc_data)
@@ -206,8 +212,9 @@ async def get_upload_status(file_hash: str, current_user: dict = Depends(get_cur
         
         data = doc.to_dict()
         # Enforce ownership
-        # if data.get("owner_id") != current_user.get("uid"):
-        #     raise HTTPException(404, "File not found")
+        user_id = current_user.get("uid")
+        if user_id not in data.get("authorized_users", []):
+            raise HTTPException(403, "Access forbidden")
         return {
             "file_hash": file_hash,
             "filename": data.get("filename"),
@@ -241,8 +248,9 @@ async def delete_file(file_hash: str, current_user: dict = Depends(get_current_u
         
         data = doc.to_dict()
         # Enforce ownership
-        if data.get("owner_id") != current_user.get("uid"):
-            raise HTTPException(404, "File not found")
+        user_id = current_user.get("uid")
+        if user_id not in data.get("authorized_users", []):
+            raise HTTPException(403, "Access forbidden: You do not have permission to delete this file.")
         file_path = data.get("file_path")
         
         # Delete file from disk

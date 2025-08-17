@@ -17,12 +17,16 @@ async def query_legal_doc(
     if not req.file_hash:
         raise HTTPException(400, "file_hash is required")
     
-    # Verify document ownership
+    # Verify document access
     user_id = current_user.get("uid")
     doc_ref = firestore_db.collection("documents").document(req.file_hash)
     doc = doc_ref.get()
-    if (not doc.exists) or (doc.to_dict().get("owner_id") != user_id):
-        raise HTTPException(status_code=404, detail="File not found or access denied.")
+    if not doc.exists:
+        raise HTTPException(status_code=404, detail="File not found.")
+
+    doc_data = doc.to_dict()
+    if user_id not in doc_data.get("authorized_users", []):
+        raise HTTPException(status_code=403, detail="Access denied.")
     
     # Query vectors using file_hash
     res = query_vectors(req.question, file_id=req.file_hash, top_k=req.top_k)
