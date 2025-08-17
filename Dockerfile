@@ -30,8 +30,8 @@ COPY . .
 
 # Set up Firebase Admin SDK credentials
 RUN mkdir -p /app/credentials
-COPY firebase_key.json /app/credentials/firebase_key.json
-ENV GOOGLE_APPLICATION_CREDENTIALS=/app/credentials/firebase_key.json
+ENV GOOGLE_APPLICATION_CREDENTIALS=/mnt/secrets/firebase_key.json
+
 
 # Expose port
 EXPOSE $PORT
