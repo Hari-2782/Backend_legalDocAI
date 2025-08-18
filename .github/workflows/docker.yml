@@ -1,4 +1,4 @@
-name: Deploy to Railway
+name: Deploy LegalDoc AI
 
 on:
   push:
@@ -6,43 +6,45 @@ on:
       - main
 
 jobs:
-  deploy:
+  build-and-deploy:
     runs-on: ubuntu-latest
 
+    env:
+      # Any env you want to pass to Docker, or use Railway secrets
+      OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+      HF_MODEL: ${{ secrets.HF_MODEL }}
+      CHROMA_CLOUD_API_KEY: ${{ secrets.CHROMA_CLOUD_API_KEY }}
+      FIREBASE_WEB_API_KEY: ${{ secrets.FIREBASE_WEB_API_KEY }}
+
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v3
+    - name: Checkout repo
+      uses: actions/checkout@v3
 
-      # 1️⃣ Set up Python (optional if building Docker only)
-      - name: Set up Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: 3.11
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
 
-      # 2️⃣ Write Firebase secret to a file
-      - name: Write Firebase credentials
-        run: |
-          mkdir -p /app
-          echo "${{ secrets.GOOGLE_APPLICATION_CREDENTIALS_JSON }}" > /app/firebase-config.json
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
 
-      # 3️⃣ Build Docker image
-      - name: Build Docker image
-        run: |
-          docker build -t legaldoc-ai:latest .
+    - name: Prepare Firebase credentials
+      run: |
+        mkdir -p ./app
+        echo "${{ secrets.GOOGLE_APPLICATION_CREDENTIALS_JSON }}" > ./app/firebase-config.json
+      shell: bash
 
-      # 4️⃣ Log in to Railway Docker registry
-      - name: Login to Railway Docker
-        run: |
-          echo "${{ secrets.RAILWAY_TOKEN }}" | docker login registry.railway.app -u _ --password-stdin
+    - name: Build Docker image
+      run: |
+        docker build -t legaldoc-ai:latest .
 
-      # 5️⃣ Push Docker image to Railway
-      - name: Push Docker image
-        run: |
-          docker tag legaldoc-ai:latest registry.railway.app/${{ secrets.RAILWAY_PROJECT_ID }}/legaldoc-ai:latest
-          docker push registry.railway.app/${{ secrets.RAILWAY_PROJECT_ID }}/legaldoc-ai:latest
+    - name: Log in to Railway
+      uses: railwayapp/railway-action@v2
+      with:
+        apiKey: ${{ secrets.RAILWAY_API_KEY }}
 
-      # 6️⃣ Optional: Trigger Railway deployment API
-      - name: Trigger Railway Deployment
-        run: |
-          curl -X POST "https://backboard.railway.app/api/v1/projects/${{ secrets.RAILWAY_PROJECT_ID }}/deployments" \
-          -H "Authorization: Bearer ${{ secrets.RAILWAY_TOKEN }}"
+    - name: Deploy to Railway
+      run: |
+        railway up --detach
