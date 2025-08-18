@@ -1,4 +1,4 @@
-name: Deploy LegalDoc AI
+name: Build, Push and Deploy
 
 on:
   push:
@@ -6,45 +6,45 @@ on:
       - main
 
 jobs:
-  build-and-deploy:
+  deploy:
     runs-on: ubuntu-latest
 
-    env:
-      # Any env you want to pass to Docker, or use Railway secrets
-      OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
-      HF_MODEL: ${{ secrets.HF_MODEL }}
-      CHROMA_CLOUD_API_KEY: ${{ secrets.CHROMA_CLOUD_API_KEY }}
-      FIREBASE_WEB_API_KEY: ${{ secrets.FIREBASE_WEB_API_KEY }}
-
     steps:
-    - name: Checkout repo
-      uses: actions/checkout@v3
+      - name: Checkout code
+        uses: actions/checkout@v3
 
-    - name: Set up Python
-      uses: actions/setup-python@v4
-      with:
-        python-version: '3.11'
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+        with:
+          driver: docker-container
+          buildkitd-flags: --debug
 
-    - name: Install dependencies
-      run: |
-        python -m pip install --upgrade pip
-        pip install -r requirements.txt
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v2
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
 
-    - name: Prepare Firebase credentials
-      run: |
-        mkdir -p ./app
-        echo "${{ secrets.GOOGLE_APPLICATION_CREDENTIALS_JSON }}" > ./app/firebase-config.json
-      shell: bash
+      - name: Build and Push Docker image
+        uses: docker/build-push-action@v4
+        with:
+          context: .
+          push: true
+          tags: harisanth/legaldoc-ai-backend:latest
+          cache-from: type=registry,ref=harisanth/legaldoc-ai-backend:latest
+          cache-to: type=registry,ref=harisanth/legaldoc-ai-backend:latest,mode=max
 
-    - name: Build Docker image
-      run: |
-        docker build -t legaldoc-ai:latest .
+      - name: Install Railway CLI
+        run: npm install -g @railway/cli
 
-    - name: Log in to Railway
-      uses: railwayapp/railway-action@v2
-      with:
-        apiKey: ${{ secrets.RAILWAY_API_KEY }}
-
-    - name: Deploy to Railway
-      run: |
-        railway up --detach
+      - name: Deploy to Railway
+        run: railway up --service legaldoc-ai
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          HF_API_TOKEN: ${{ secrets.HF_API_TOKEN }}
+          FIREBASE_KEY_JSON: ${{ secrets.FIREBASE_KEY_JSON }}
+          FIREBASE_WEB_API_KEY: ${{ secrets.FIREBASE_WEB_API_KEY }}
+          CHROMA_CLOUD_API_KEY: ${{ secrets.CHROMA_CLOUD_API_KEY }}
+          CHROMA_CLOUD_TENANT: ${{ secrets.CHROMA_CLOUD_TENANT }}
+          CHROMA_CLOUD_DATABASE: ${{ secrets.CHROMA_CLOUD_DATABASE }}
