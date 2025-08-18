@@ -30,9 +30,9 @@ jobs:
         with:
           context: .
           push: true
-          tags: harisanth/legaldoc-ai:latest
-          cache-from: type=registry,ref=harisanth/legaldoc-ai:latest
-          cache-to: type=registry,ref=harisanth/legaldoc-ai:latest,mode=max
+          tags: harisanth/legaldoc-ai-backend:latest
+          cache-from: type=registry,ref=harisanth/legaldoc-ai-backend:latest
+          cache-to: type=registry,ref=harisanth/legaldoc-ai-backend:latest,mode=max
 
       - name: Install Railway CLI
         run: npm install -g @railway/cli
@@ -41,3 +41,10 @@ jobs:
         run: railway up --service legaldoc-ai
         env:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          HF_API_TOKEN: ${{ secrets.HF_API_TOKEN }}
+          FIREBASE_KEY_JSON: ${{ secrets.FIREBASE_KEY_JSON }}
+          FIREBASE_WEB_API_KEY: ${{ secrets.FIREBASE_WEB_API_KEY }}
+          CHROMA_CLOUD_API_KEY: ${{ secrets.CHROMA_CLOUD_API_KEY }}
+          CHROMA_CLOUD_TENANT: ${{ secrets.CHROMA_CLOUD_TENANT }}
+          CHROMA_CLOUD_DATABASE: ${{ secrets.CHROMA_CLOUD_DATABASE }}
