@@ -14,6 +14,7 @@ class Settings(BaseSettings):
 
     # Firebase Configuration
     FIREBASE_KEY_JSON: Optional[str] = None  # JSON string from Railway env
+    FIREBASE_KEY_PATH: str = "./firebase_key.json"  # fallback for local dev
     FIREBASE_WEB_API_KEY: str  # Required for login endpoint
 
     # ChromaDB Configuration
@@ -52,12 +53,12 @@ class Settings(BaseSettings):
 
 settings = Settings()
 
-# Initialize Firebase dynamically from env
+# Initialize Firebase dynamically
 if settings.FIREBASE_KEY_JSON:
     firebase_cred = credentials.Certificate(json.loads(settings.FIREBASE_KEY_JSON))
     initialize_app(firebase_cred)
 else:
-    # Fallback for local dev using file
-    from firebase_admin import credentials as cred_file
+    # Fallback for local dev
     cred_path = settings.FIREBASE_KEY_PATH
-    initialize_app(cred_file.Certificate(cred_path))
+    firebase_cred = credentials.Certificate(cred_path)
+    initialize_app(firebase_cred)
