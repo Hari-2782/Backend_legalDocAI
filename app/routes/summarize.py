@@ -20,18 +20,15 @@ async def summarize_contract(
     """Summarize a legal document with ownership verification."""
     user_id = current_user.get("uid")
     
-    # Verify document ownership
+    # Verify document access
     doc_ref = firestore_db.collection("documents").document(req.file_hash)
     doc = doc_ref.get()
     if not doc.exists:
         raise HTTPException(status_code=404, detail="Document not found")
     
     doc_data = doc.to_dict()
-    owner_id = doc_data.get("owner_id")
-    
-    # If no owner_id is set (old documents), allow access but log it
-    if owner_id and owner_id != user_id:
-        raise HTTPException(status_code=404, detail="Document not found or access denied.")
+    if user_id not in doc_data.get("authorized_users", []):
+        raise HTTPException(status_code=403, detail="Access forbidden")
     
     # Get document chunks
     res = query_vectors("", file_id=req.file_hash, top_k=20)  # Get more chunks for better summary
@@ -66,11 +63,15 @@ async def simplify_document(
     """Transform legal document into plain English with structured breakdown."""
     user_id = current_user.get("uid")
     
-    # Verify document ownership
+    # Verify document access
     doc_ref = firestore_db.collection("documents").document(req.file_hash)
     doc = doc_ref.get()
-    if not doc.exists or doc.to_dict().get("owner_id") != user_id:
-        raise HTTPException(status_code=404, detail="Document not found or access denied.")
+    if not doc.exists:
+        raise HTTPException(status_code=404, detail="Document not found")
+    
+    doc_data = doc.to_dict()
+    if user_id not in doc_data.get("authorized_users", []):
+        raise HTTPException(status_code=403, detail="Access forbidden")
     
     # Get all document chunks
     res = query_vectors("", file_id=req.file_hash, top_k=50)  # Get all chunks
@@ -122,12 +123,16 @@ async def compare_clauses(
     if not clause_query:
         raise HTTPException(400, "Clause query is required")
     
-    # Verify ownership of all documents
+    # Verify access to all documents
     for file_hash in file_hashes:
         doc_ref = firestore_db.collection("documents").document(file_hash)
         doc = doc_ref.get()
-        if not doc.exists or doc.to_dict().get("owner_id") != user_id:
-            raise HTTPException(status_code=404, detail=f"Document {file_hash} not found or access denied.")
+        if not doc.exists:
+            raise HTTPException(status_code=404, detail=f"Document {file_hash} not found")
+        
+        doc_data = doc.to_dict()
+        if user_id not in doc_data.get("authorized_users", []):
+            raise HTTPException(status_code=403, detail=f"Access forbidden to document {file_hash}")
     
     # Get relevant chunks from each document
     document_texts = []
@@ -168,11 +173,15 @@ async def get_evidence_highlights(
     file_hash = req.file_hash
     question = req.question
     
-    # Verify document ownership
+    # Verify document access
     doc_ref = firestore_db.collection("documents").document(file_hash)
     doc = doc_ref.get()
-    if not doc.exists or doc.to_dict().get("owner_id") != user_id:
-        raise HTTPException(status_code=404, detail="Document not found or access denied.")
+    if not doc.exists:
+        raise HTTPException(status_code=404, detail="Document not found")
+    
+    doc_data = doc.to_dict()
+    if user_id not in doc_data.get("authorized_users", []):
+        raise HTTPException(status_code=403, detail="Access forbidden")
     
     # Get relevant chunks with metadata
     res = query_vectors(question, file_id=file_hash, top_k=5)

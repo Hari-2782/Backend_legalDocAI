@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from app.models import FeedbackRequest
 from app.database import firestore_db
 from app.auth import get_current_user
@@ -16,6 +16,16 @@ async def submit_feedback(
 ):
     """Submit feedback for AI responses to improve the model."""
     user_id = current_user.get("uid")
+    
+    # Verify document access
+    doc_ref = firestore_db.collection("documents").document(feedback.file_hash)
+    doc = doc_ref.get()
+    if not doc.exists:
+        raise HTTPException(status_code=404, detail="Document not found")
+    
+    data = doc.to_dict()
+    if user_id not in data.get("authorized_users", []):
+        raise HTTPException(status_code=403, detail="Access forbidden")
     
     # Add user_id and timestamp to feedback
     doc = feedback.dict()
