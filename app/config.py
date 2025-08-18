@@ -2,16 +2,19 @@ import os
 import json
 from typing import Optional
 from pydantic_settings import BaseSettings, SettingsConfigDict
-import firebase_admin
-from firebase_admin import credentials
+from firebase_admin import credentials, initialize_app
 
 class Settings(BaseSettings):
     # Inference via OpenRouter
     OPENROUTER_API_KEY: str
     HF_MODEL: str = "anthropic/claude-3-haiku"
-    HF_API_TOKEN: Optional[str] = None  # backward compatibility
+
+    # Backward compatibility
+    HF_API_TOKEN: Optional[str] = None
 
     # Firebase Configuration
+    FIREBASE_KEY_JSON: Optional[str] = None  # JSON string from Railway env
+    FIREBASE_KEY_PATH: str = "./firebase_key.json"  # fallback for local dev
     FIREBASE_WEB_API_KEY: str  # Required for login endpoint
 
     # ChromaDB Configuration
@@ -50,23 +53,12 @@ class Settings(BaseSettings):
 
 settings = Settings()
 
-# ----------------------------
-# Firebase Initialization
-# ----------------------------
-firebase_json_env = os.environ.get("GOOGLE_APPLICATION_CREDENTIALS_JSON")
-
-if firebase_json_env:
-    # Write JSON to file if it exists in environment
-    firebase_path = "/app/firebase-config.json"
-    with open(firebase_path, "w") as f:
-        f.write(firebase_json_env)
-    os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = firebase_path
-    cred = credentials.Certificate(firebase_path)
+# Initialize Firebase dynamically
+if settings.FIREBASE_KEY_JSON:
+    firebase_cred = credentials.Certificate(json.loads(settings.FIREBASE_KEY_JSON))
+    initialize_app(firebase_cred)
 else:
     # Fallback for local dev
-    local_path = "./firebase_key.json"
-    cred = credentials.Certificate(local_path)
-
-# Initialize Firebase only once
-if not firebase_admin._apps:
-    firebase_admin.initialize_app(cred)
+    cred_path = settings.FIREBASE_KEY_PATH
+    firebase_cred = credentials.Certificate(cred_path)
+    initialize_app(firebase_cred)
