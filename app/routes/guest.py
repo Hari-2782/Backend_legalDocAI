@@ -1,5 +1,6 @@
 from fastapi import APIRouter, UploadFile, File, HTTPException, BackgroundTasks
 from app.services.pdf_parser import pdf_parser
+from app.services.file_parser import universal_parser
 from app.services.embedding import embedding_service
 from app.database import firestore_db, vector_collection, embedder
 import os
@@ -19,8 +20,8 @@ async def process_pdf_background_guest(file_hash: str, file_content: bytes, orig
     try:
         print(f"Starting guest background processing for file: {original_filename}")
         
-        # Process PDF in batches
-        result = pdf_parser.process_pdf_in_batches(file_content, batch_size=3)
+        # Process file in batches (supports all file types)
+        result = universal_parser.process_file_in_batches(file_content, original_filename, batch_size=3)
         
         if "error" in result:
             print(f"Error processing PDF: {result['error']}")
@@ -76,8 +77,9 @@ async def upload_pdf_guest(
         if not firestore_db:
             raise HTTPException(500, "Document database not available")
         
-        if not file.filename.lower().endswith(".pdf"):
-            raise HTTPException(400, "Only PDFs are supported")
+        # Allow all file types
+        # if not file.filename.lower().endswith(".pdf"):
+        #     raise HTTPException(400, "Only PDFs are supported")
         
         # Read file content
         content = await file.read()
@@ -87,7 +89,7 @@ async def upload_pdf_guest(
             raise HTTPException(400, "File too large. Maximum size is 50MB.")
         
         # Calculate file hash for guest document
-        file_hash = pdf_parser.calculate_file_hash(content)
+        file_hash = universal_parser.calculate_file_hash(content)
         guest_hash = f"guest_{file_hash}"  # Prefix to distinguish from user documents
         
         # Create upload directory if it doesn't exist
@@ -102,7 +104,7 @@ async def upload_pdf_guest(
             f.write(content)
         
         # Get basic file info for immediate response
-        basic_info = pdf_parser.extract_text_from_pdf_bytes(content, max_pages=None)
+        basic_info = universal_parser.extract_text_from_file_bytes(content, file.filename, max_pages=None)
         
         # Save guest document metadata (no user tracking)
         doc_data = {

@@ -1,5 +1,6 @@
 from fastapi import APIRouter, UploadFile, File, HTTPException, BackgroundTasks, Depends
 from app.services.pdf_parser import pdf_parser
+from app.services.file_parser import universal_parser
 from app.services.embedding import embedding_service
 from app.database import firestore_db, vector_collection, embedder
 import os
@@ -49,8 +50,8 @@ async def process_pdf_background(file_hash: str, file_content: bytes, original_f
     try:
         print(f"Starting background processing for file: {original_filename}")
         
-        # Process PDF in batches
-        result = pdf_parser.process_pdf_in_batches(file_content, batch_size=3)
+        # Process file in batches (supports all file types)
+        result = universal_parser.process_file_in_batches(file_content, original_filename, batch_size=3)
         
         if "error" in result:
             print(f"Error processing PDF: {result['error']}")
@@ -106,8 +107,7 @@ async def upload_pdf(
         if not firestore_db:
             raise HTTPException(500, "Document database not available")
         
-        if not file.filename.lower().endswith(".pdf"):
-            raise HTTPException(400, "Only PDFs are supported")
+        # All file types are now supported
         
         # Read file content
         content = await file.read()
@@ -117,7 +117,7 @@ async def upload_pdf(
             raise HTTPException(400, "File too large. Maximum size is 50MB.")
         
         # Calculate file hash for duplicate detection
-        file_hash = pdf_parser.calculate_file_hash(content)
+        file_hash = universal_parser.calculate_file_hash(content)
         
         # Check for duplicate files
         duplicate_check = await check_duplicate_file(file_hash)
@@ -149,7 +149,7 @@ async def upload_pdf(
             f.write(content)
         
         # Get basic file info for immediate response
-        basic_info = pdf_parser.extract_text_from_pdf_bytes(content, max_pages=None)  # Process ALL pages
+        basic_info = universal_parser.extract_text_from_file_bytes(content, file.filename, max_pages=None)  # Process ALL pages
         
         # Save initial document metadata
         doc_data = {

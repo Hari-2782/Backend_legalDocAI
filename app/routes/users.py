@@ -12,6 +12,7 @@ import datetime
 import os
 import requests
 from app.services.inference import call_hf_inference
+from app.services.file_parser import universal_parser
 from app.services.pdf_parser import pdf_parser
 import firebase_admin.firestore as firestore
 from google.api_core.exceptions import FailedPrecondition
@@ -284,17 +285,14 @@ async def generate_confidential_report_from_upload(
     - Does not index in Chroma/vector DB
     """
     try:
-        if not file.filename.lower().endswith(".pdf"):
-            raise HTTPException(status_code=400, detail="Only PDFs are supported")
-
         content = await file.read()
         if len(content) > 50 * 1024 * 1024:
             raise HTTPException(status_code=400, detail="File too large. Maximum size is 50MB.")
 
-        extract = pdf_parser.extract_text_from_pdf_bytes(content, max_pages=None)
+        extract = universal_parser.extract_text_from_file_bytes(content, file.filename, max_pages=None)
         full_text = extract.get("full_text") or extract.get("text") or ""
         if not full_text:
-            raise HTTPException(status_code=400, detail="Could not extract text from PDF")
+            raise HTTPException(status_code=400, detail="Could not extract text from file")
 
         if report_type == "financial":
             prompt = f"""Generate a confidential financial analysis report for this legal document. Focus on:
