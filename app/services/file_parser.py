@@ -24,17 +24,17 @@ class UniversalFileParser:
     
     def extract_text_from_file_bytes(self, file_bytes: bytes, filename: str, max_pages: int = None) -> Dict:
         """
-        Extract text from supported file types: PDF, Word (.doc/.docx), and TXT files.
+        Extract text from supported file types: PDF, Word (.doc/.docx), and Text (.txt).
         Returns dict with text, hash, and metadata.
         """
         file_extension = os.path.splitext(filename)[1].lower()
         
-        # Only support PDF, Word, and TXT files
+        # Only support PDF, Word, and Text files
         supported_extensions = ['.pdf', '.doc', '.docx', '.txt']
         if file_extension not in supported_extensions:
             return {
                 "hash": self.calculate_file_hash(file_bytes),
-                "error": f"Unsupported file type: {file_extension}. Only PDF, Word (.doc/.docx), and TXT files are supported.",
+                "error": f"Unsupported file type: {file_extension}. Supported formats: PDF, Word (.doc/.docx), Text (.txt)",
                 "chunks": [],
                 "total_chunks": 0,
                 "file_type": file_extension
@@ -47,6 +47,8 @@ class UniversalFileParser:
                 return self._extract_from_text(file_bytes, filename)
             elif file_extension in ['.doc', '.docx']:
                 return self._extract_from_word(file_bytes, filename)
+            else:
+                return self._extract_from_text(file_bytes, filename)
                 
         except Exception as e:
             return {
@@ -138,26 +140,43 @@ class UniversalFileParser:
     def _extract_from_word(self, file_bytes: bytes, filename: str) -> Dict:
         """Extract text from Word documents with optimized processing"""
         try:
-            import docx
-            from io import BytesIO
+            # Try multiple methods for Word document processing
+            text = ""
             
-            # Optimized Word processing - extract text more efficiently
-            doc = docx.Document(BytesIO(file_bytes))
+            # Method 1: Try python-docx (most reliable but slower)
+            try:
+                import docx
+                from io import BytesIO
+                
+                print(f"Processing Word document: {filename} (this may take a moment...)")
+                doc = docx.Document(BytesIO(file_bytes))
+                
+                # Extract text from paragraphs with progress indication
+                paragraphs = []
+                total_paragraphs = len(doc.paragraphs)
+                
+                for i, paragraph in enumerate(doc.paragraphs):
+                    if paragraph.text.strip():  # Only add non-empty paragraphs
+                        paragraphs.append(paragraph.text)
+                    
+                    # Progress indication for large documents
+                    if i % 100 == 0 and total_paragraphs > 100:
+                        print(f"Processing paragraph {i}/{total_paragraphs}...")
+                        gc.collect()  # Force garbage collection
+                
+                text = "\n".join(paragraphs)
+                print(f"Word document processed successfully: {len(text)} characters extracted")
+                
+            except ImportError:
+                # Method 2: Fallback - try to extract as plain text
+                print("python-docx not available, trying text extraction...")
+                try:
+                    text = file_bytes.decode('utf-8', errors='ignore')
+                except:
+                    text = file_bytes.decode('latin-1', errors='ignore')
             
-            # Use list comprehension for faster text extraction
-            paragraphs = [p.text.strip() for p in doc.paragraphs if p.text.strip()]
-            text = "\n\n".join(paragraphs)
-            
-            # Also extract text from tables if present (optional optimization)
-            tables_text = []
-            for table in doc.tables:
-                for row in table.rows:
-                    row_text = " | ".join([cell.text.strip() for cell in row.cells if cell.text.strip()])
-                    if row_text:
-                        tables_text.append(row_text)
-            
-            if tables_text:
-                text += "\n\nTables:\n" + "\n".join(tables_text)
+            if not text.strip():
+                raise ValueError("No text content extracted from Word document")
             
             return {
                 "hash": self.calculate_file_hash(file_bytes),
@@ -167,119 +186,18 @@ class UniversalFileParser:
                 "file_type": os.path.splitext(filename)[1].lower(),
                 "full_text": text
             }
-        except ImportError:
-            return {
-                "hash": self.calculate_file_hash(file_bytes),
-                "error": "python-docx package required for Word document processing. Please install it: pip install python-docx",
-                "chunks": [],
-                "total_chunks": 0,
-                "file_type": os.path.splitext(filename)[1].lower()
-            }
+            
         except Exception as e:
             return {
                 "hash": self.calculate_file_hash(file_bytes),
-                "error": f"Error processing Word document: {str(e)}",
+                "error": f"Word document processing failed: {str(e)}",
                 "chunks": [],
                 "total_chunks": 0,
                 "file_type": os.path.splitext(filename)[1].lower()
             }
     
-    def _extract_from_html(self, file_bytes: bytes, filename: str) -> Dict:
-        """Extract text from HTML files"""
-        try:
-            from bs4 import BeautifulSoup
-            
-            html_content = file_bytes.decode('utf-8')
-            soup = BeautifulSoup(html_content, 'html.parser')
-            text = soup.get_text(separator='\n', strip=True)
-            
-            return {
-                "hash": self.calculate_file_hash(file_bytes),
-                "pages": [{"page": 1, "text": text, "metadata": {"filename": filename}}],
-                "total_pages": 1,
-                "file_size": len(file_bytes),
-                "file_type": os.path.splitext(filename)[1].lower(),
-                "full_text": text
-            }
-        except ImportError:
-            return {
-                "hash": self.calculate_file_hash(file_bytes),
-                "error": "beautifulsoup4 package required for HTML processing",
-                "chunks": [],
-                "total_chunks": 0,
-                "file_type": os.path.splitext(filename)[1].lower()
-            }
-        except Exception as e:
-            return {
-                "hash": self.calculate_file_hash(file_bytes),
-                "error": str(e),
-                "chunks": [],
-                "total_chunks": 0,
-                "file_type": os.path.splitext(filename)[1].lower()
-            }
     
-    def _extract_from_json(self, file_bytes: bytes, filename: str) -> Dict:
-        """Extract text from JSON files"""
-        try:
-            import json
-            
-            json_content = file_bytes.decode('utf-8')
-            data = json.loads(json_content)
-            text = json.dumps(data, indent=2)
-            
-            return {
-                "hash": self.calculate_file_hash(file_bytes),
-                "pages": [{"page": 1, "text": text, "metadata": {"filename": filename}}],
-                "total_pages": 1,
-                "file_size": len(file_bytes),
-                "file_type": os.path.splitext(filename)[1].lower(),
-                "full_text": text
-            }
-        except Exception as e:
-            return {
-                "hash": self.calculate_file_hash(file_bytes),
-                "error": str(e),
-                "chunks": [],
-                "total_chunks": 0,
-                "file_type": os.path.splitext(filename)[1].lower()
-            }
     
-    def _extract_from_csv(self, file_bytes: bytes, filename: str) -> Dict:
-        """Extract text from CSV files"""
-        try:
-            import csv
-            from io import StringIO
-            
-            csv_content = file_bytes.decode('utf-8')
-            csv_reader = csv.reader(StringIO(csv_content))
-            rows = list(csv_reader)
-            
-            # Convert CSV to readable text format
-            text_lines = []
-            for i, row in enumerate(rows):
-                if i == 0:  # Header row
-                    text_lines.append("Headers: " + " | ".join(row))
-                else:
-                    text_lines.append(f"Row {i}: " + " | ".join(row))
-            
-            text = "\n".join(text_lines)
-            
-            return {
-                "hash": self.calculate_file_hash(file_bytes),
-                "pages": [{"page": 1, "text": text, "metadata": {"filename": filename}}],
-                "total_pages": 1,
-                "file_size": len(file_bytes),
-                "file_type": os.path.splitext(filename)[1].lower(),
-                "full_text": text
-            }
-        except Exception as e:
-            return {
-                "hash": self.calculate_file_hash(file_bytes),
-                "error": str(e),
-                "chunks": [],
-                "total_chunks": 0,
-                "file_type": os.path.splitext(filename)[1].lower()
-            }
     
     def chunk_text_optimized(self, text: str) -> List[str]:
         """Use LangChain's optimized text splitting for better memory management."""

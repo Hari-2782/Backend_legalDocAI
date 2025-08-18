@@ -107,7 +107,11 @@ async def upload_pdf(
         if not firestore_db:
             raise HTTPException(500, "Document database not available")
         
-        # All file types are now supported
+        # Check supported file types: PDF, Word (.doc/.docx), Text (.txt)
+        file_extension = os.path.splitext(file.filename)[1].lower()
+        supported_extensions = ['.pdf', '.doc', '.docx', '.txt']
+        if file_extension not in supported_extensions:
+            raise HTTPException(400, f"Unsupported file type: {file_extension}. Supported formats: PDF, Word (.doc/.docx), Text (.txt)")
         
         # Read file content
         content = await file.read()

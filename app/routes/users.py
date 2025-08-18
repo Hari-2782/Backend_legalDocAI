@@ -285,6 +285,12 @@ async def generate_confidential_report_from_upload(
     - Does not index in Chroma/vector DB
     """
     try:
+        # Check supported file types: PDF, Word (.doc/.docx), Text (.txt)
+        file_extension = os.path.splitext(file.filename)[1].lower()
+        supported_extensions = ['.pdf', '.doc', '.docx', '.txt']
+        if file_extension not in supported_extensions:
+            raise HTTPException(400, f"Unsupported file type: {file_extension}. Supported formats: PDF, Word (.doc/.docx), Text (.txt)")
+        
         content = await file.read()
         if len(content) > 50 * 1024 * 1024:
             raise HTTPException(status_code=400, detail="File too large. Maximum size is 50MB.")
