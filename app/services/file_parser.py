@@ -2,7 +2,7 @@ import hashlib
 import os
 import tempfile
 import gc
-from typing import List, Dict, Optional, Union
+from typing import List, Dict, Optional
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_community.document_loaders import PyMuPDFLoader
 import fitz  # PyMuPDF
@@ -24,27 +24,29 @@ class UniversalFileParser:
     
     def extract_text_from_file_bytes(self, file_bytes: bytes, filename: str, max_pages: int = None) -> Dict:
         """
-        Extract text from various file types with optimized memory management.
+        Extract text from supported file types: PDF, Word (.doc/.docx), and TXT files.
         Returns dict with text, hash, and metadata.
         """
         file_extension = os.path.splitext(filename)[1].lower()
         
+        # Only support PDF, Word, and TXT files
+        supported_extensions = ['.pdf', '.doc', '.docx', '.txt']
+        if file_extension not in supported_extensions:
+            return {
+                "hash": self.calculate_file_hash(file_bytes),
+                "error": f"Unsupported file type: {file_extension}. Only PDF, Word (.doc/.docx), and TXT files are supported.",
+                "chunks": [],
+                "total_chunks": 0,
+                "file_type": file_extension
+            }
+        
         try:
             if file_extension == '.pdf':
                 return self._extract_from_pdf(file_bytes, max_pages)
-            elif file_extension in ['.txt', '.md', '.rst']:
+            elif file_extension == '.txt':
                 return self._extract_from_text(file_bytes, filename)
             elif file_extension in ['.doc', '.docx']:
                 return self._extract_from_word(file_bytes, filename)
-            elif file_extension in ['.html', '.htm']:
-                return self._extract_from_html(file_bytes, filename)
-            elif file_extension in ['.json']:
-                return self._extract_from_json(file_bytes, filename)
-            elif file_extension in ['.csv']:
-                return self._extract_from_csv(file_bytes, filename)
-            else:
-                # Try to treat as plain text
-                return self._extract_from_text(file_bytes, filename)
                 
         except Exception as e:
             return {
@@ -134,14 +136,28 @@ class UniversalFileParser:
             }
     
     def _extract_from_word(self, file_bytes: bytes, filename: str) -> Dict:
-        """Extract text from Word documents (requires python-docx)"""
+        """Extract text from Word documents with optimized processing"""
         try:
-            # Note: This requires python-docx package
             import docx
             from io import BytesIO
             
+            # Optimized Word processing - extract text more efficiently
             doc = docx.Document(BytesIO(file_bytes))
-            text = "\n".join([paragraph.text for paragraph in doc.paragraphs])
+            
+            # Use list comprehension for faster text extraction
+            paragraphs = [p.text.strip() for p in doc.paragraphs if p.text.strip()]
+            text = "\n\n".join(paragraphs)
+            
+            # Also extract text from tables if present (optional optimization)
+            tables_text = []
+            for table in doc.tables:
+                for row in table.rows:
+                    row_text = " | ".join([cell.text.strip() for cell in row.cells if cell.text.strip()])
+                    if row_text:
+                        tables_text.append(row_text)
+            
+            if tables_text:
+                text += "\n\nTables:\n" + "\n".join(tables_text)
             
             return {
                 "hash": self.calculate_file_hash(file_bytes),
@@ -154,7 +170,7 @@ class UniversalFileParser:
         except ImportError:
             return {
                 "hash": self.calculate_file_hash(file_bytes),
-                "error": "python-docx package required for Word document processing",
+                "error": "python-docx package required for Word document processing. Please install it: pip install python-docx",
                 "chunks": [],
                 "total_chunks": 0,
                 "file_type": os.path.splitext(filename)[1].lower()
@@ -162,7 +178,7 @@ class UniversalFileParser:
         except Exception as e:
             return {
                 "hash": self.calculate_file_hash(file_bytes),
-                "error": str(e),
+                "error": f"Error processing Word document: {str(e)}",
                 "chunks": [],
                 "total_chunks": 0,
                 "file_type": os.path.splitext(filename)[1].lower()
