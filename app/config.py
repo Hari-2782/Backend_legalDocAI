@@ -54,11 +54,22 @@ class Settings(BaseSettings):
 settings = Settings()
 
 # Initialize Firebase dynamically
-if settings.FIREBASE_KEY_JSON:
-    firebase_cred = credentials.Certificate(json.loads(settings.FIREBASE_KEY_JSON))
-    initialize_app(firebase_cred)
-else:
-    # Fallback for local dev
-    cred_path = settings.FIREBASE_KEY_PATH
-    firebase_cred = credentials.Certificate(cred_path)
-    initialize_app(firebase_cred)
+try:
+    if settings.FIREBASE_KEY_JSON:
+        # For Railway deployment - use JSON string from environment
+        firebase_cred = credentials.Certificate(json.loads(settings.FIREBASE_KEY_JSON))
+        initialize_app(firebase_cred)
+        print("Firebase initialized with JSON key from environment")
+    else:
+        # Fallback for local dev - use file path
+        cred_path = settings.FIREBASE_KEY_PATH
+        if os.path.exists(cred_path):
+            firebase_cred = credentials.Certificate(cred_path)
+            initialize_app(firebase_cred)
+            print("Firebase initialized with local key file")
+        else:
+            print(f"Warning: Firebase key file not found at {cred_path}")
+            raise FileNotFoundError(f"Firebase key file not found at {cred_path}")
+except Exception as e:
+    print(f"Firebase initialization failed: {e}")
+    raise e

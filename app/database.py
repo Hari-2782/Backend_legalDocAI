@@ -11,14 +11,14 @@ import os
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Firebase init
+# Firebase init - Use the already initialized app from config.py
 try:
-    cred = credentials.Certificate(settings.FIREBASE_KEY_PATH)
-    firebase_admin.initialize_app(cred)
+    # Firebase should already be initialized in config.py
+    # Just get the firestore client
     firestore_db = firestore.client()
-    logger.info("Firebase initialized successfully")
+    logger.info("Firebase firestore client initialized successfully")
 except Exception as e:
-    logger.error(f"Firebase initialization failed: {e}")
+    logger.error(f"Firebase firestore client initialization failed: {e}")
     firestore_db = None
 
 # ChromaDB init - Support both local and cloud
